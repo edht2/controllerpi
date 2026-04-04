@@ -18,7 +18,7 @@ print(f"Waiting until {Fore.CYAN}{start_time.strftime('%c')}{Style.RESET_ALL}")
 # /*** Timing system ***
 
 
-from app.greenhouse import Greenhouse
+from app.main import Greenhouse
 
 if __name__ == "__main__":
     greenhouse = Greenhouse()

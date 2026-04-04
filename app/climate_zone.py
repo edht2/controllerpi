@@ -81,32 +81,32 @@ class ClimateZone:
             # the greenhouse is way too cold!!! Emergency mode, drop everything and do everying
             self.top_windows.close()
             self.side_windows.close()
-            self.misting_pipe.close()
-            self.heating_pipe.open()
+            self.misting_solenoid.close()
+            self.heating_solenoid.open()
             return True
         
         if self.temperature > state['climateZones'][self.climate_zone_number-1]['extremeTemperatureRange'][1]:
             # the greenhouse is way too hot!!!
             self.top_windows.open()
             self.side_windows.open()
-            self.misting_pipe.open()
-            self.heating_pipe.close()
+            self.misting_solenoid.open()
+            self.heating_solenoid.close()
             return True
         
         if self.vapour_pressure_defecit < state['climateZones'][self.climate_zone_number-1]['extremeVPDRange'][0]:
             # the green-house is way too damp!!!
             self.top_windows.open()
             self.side_windows.open()
-            self.misting_pipe.close()
-            self.heating_pipe.close()
+            self.misting_solenoid.close()
+            self.heating_solenoid.close()
             return True
         
         if self.vapour_pressure_defecit > state['climateZones'][self.climate_zone_number-1]['extremeVPDRange'][1]:
             # the green-house is way too dry / arid!!!
             self.top_windows.close()
             self.side_windows.close()
-            self.misting_pipe.open()
-            self.heating_pipe.close()
+            self.misting_solenoid.open()
+            self.heating_solenoid.close()
             return True
             
         if self.co2_ppm < state['climateZones'][self.climate_zone_number-1]['minimumExtremeCO2ppm']:
@@ -136,87 +136,82 @@ class ClimateZone:
         if self.extreme_correction(state): return None
         # correct any extremities
         
+        # find the percent of the range the temp and vpd are
         normalised_temp = percent_range(state['climateZones'][self.climate_zone_number-1]['targetTemperatureRange'], self.temperature)
         normalised_vpd = percent_range(state['climateZones'][self.climate_zone_number-1]['targetVPDRange'], self.vapour_pressure_defecit)
         
-        if abs(50 - normalised_temp) > 25:
-            # if the climate temperature is >75% or <25%
-            if normalised_temp >= 75 and normalised_temp < 90:
-                # if the climate-zone is at 75% heat
-                self.top_windows.open()
-                self.side_windows.open()
-                self.misting_pipe.close()
-                self.heating_pipe.close()
-                return None
-                
-            if normalised_temp >= 90 and normalised_temp < 110:
-                # if the climate-zone is at 90% heat
-                self.top_windows.open()
-                self.side_windows.open()
-                self.misting_pipe.open()
-                self.heating_pipe.close()
-                return None
-                
-            if normalised_temp <= 25 and normalised_temp > 10:
-                # if the climate zone is between 25% and 10% heat; so coldish
-                self.top_windows.close()
-                self.side_windows.close()
-                self.misting_pipe.close()
-                self.heating_pipe.close()
-                return None
-            
-            if normalised_temp <= 10 and normalised_temp > -10:
-                # if the climate zone is between 10% and -10% heat; so cold!
-                self.top_windows.close()
-                self.side_windows.close()
-                self.misting_pipe.close()
-                self.heating_pipe.open()
-                return None
-                            
-        else:
-            if normalised_vpd >= 75 and normalised_vpd < 90:
-                # if the climate-zone is at 75% vpd
-                self.top_windows.close()
-                self.side_windows.close()
-                self.misting_pipe.close()
-                self.heating_pipe.open()
-                return None
-                
-            if normalised_vpd >= 90 and normalised_vpd < 110:
-                # if the climate-zone is at 90% vpd
-                self.top_windows.close()
-                self.side_windows.close()
-                self.misting_pipe.open()
-                self.heating_pipe.close()
-                return None
-                
-            if normalised_vpd <= 25 and normalised_vpd > 10:
-                # if the climate zone is between 25% and 10% vpd
-                self.top_windows.close()
-                self.side_windows.open()
-                self.misting_pipe.close()
-                self.heating_pipe.close()
-                return None
-            
-            if normalised_vpd <= 10 and normalised_vpd > -10:
-                # if the climate zone is between 10% and -10% vpd
-                self.top_windows.open()
-                self.side_windows.open()
-                self.misting_pipe.close()
-                self.heating_pipe.close()
-                return None
-            
-        if not self.co2_ppm < state['climateZones'][self.climate_zone_number-1]['minimumTargetCO2ppm']:
-            # if the CO₂ ppm is not less than the minimum level of CO₂ there is no problem and we don't need to do anything
-            return None
+        """ *** CLIMATE CONTROL ***
+        The greenhouse uses a priority based system to optimise the climate. Temperature is prioritised then humidity and finally CO₂. Extremities of the ranges are dealt with first """
         
-        # This part of the code can only execute if temperature and vpd are ok but not the co2 level!
+        # *** Extremes of ranges ***    
+        if normalised_temp >= 90:
+            # if the climate-zone is above 90% heat, yikes!
+            self.top_windows.open()
+            self.side_windows.open()
+            self.misting_solenoid.open()
+            self.heating_solenoid.close()
+            return
         
-        """ if both temperature and vpd are sound but not CO₂ fix it. This can most easily be done by opening
-        the windows and allow a breeze or diffusion to enrich the air with CO₂. In the future a CO₂ canister
-        can be installed which could work regardless of the weather """
+        if normalised_temp <= 10:
+            # if the climate zone is below 10%. COLD!
+            self.top_windows.close()
+            self.side_windows.close()
+            self.misting_solenoid.close()
+            self.heating_solenoid.open()
+            return
         
-        """ if not Weather_Client().get_current().temp - temperature_range_play < state['climateZones'][self.climate_zone_number-1]['targetTemperatureRange'][0]:
-            # if outside temperature is not too cold ( with some play ) open the windows as it should get the VPD
+        if normalised_vpd >= 90:
+            # if the climate-zone is above 90% VPD
+            self.top_windows.close()
+            self.side_windows.close()
+            self.misting_solenoid.open()
+            self.heating_solenoid.close()
+            return
+        
+        if normalised_vpd <= 10:
+            # if the climate zone is below 10% VPD
+            self.top_windows.open()
+            self.side_windows.open()
+            self.misting_solenoid.close()
+            self.heating_solenoid.close()
+            return
+        
+        # *** Minor ajustments ***
+        if normalised_temp >= 75 and normalised_temp < 90:
+            # if the climate-zone is at 75% heat
+            self.top_windows.open()
+            self.side_windows.open()
+            self.misting_solenoid.close()
+            self.heating_solenoid.close()
+            return
+        
+        if normalised_temp <= 25 and normalised_temp > 10:
+            # if the climate zone is between 25% and 10% heat; so coldish
+            self.top_windows.close()
+            self.side_windows.close()
+            self.misting_solenoid.close()
+            self.heating_solenoid.close()
+            return
+        
+        if normalised_vpd >= 75 and normalised_vpd < 90:
+            # if the climate-zone is at 75% vpd
+            self.top_windows.close()
+            self.side_windows.close()
+            self.misting_solenoid.close()
+            self.heating_solenoid.open()
+            return
             
-            self.open_windows() """
+        if normalised_vpd <= 25 and normalised_vpd > 10:
+            # if the climate zone is between 25% and 10% vpd
+            self.top_windows.close()
+            self.side_windows.open()
+            self.misting_solenoid.close()
+            self.heating_solenoid.close()
+            return
+        
+        # *** CARBON DIOXIDE CONTROL (lowest priority) ***
+        if self.co2_ppm < state['climateZones'][self.climate_zone_number-1]['minimumTargetCO2ppm']:
+            # if the CO₂ ppm is less than the target minimum level and the temperature and VPD are OK open the windows
+            # only opening side windows to reduce heat loss
+            self.side_windows.open()
+            #self.boiler_fan.enable()
